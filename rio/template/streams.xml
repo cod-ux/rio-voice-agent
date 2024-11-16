@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Content>
+    <Stream url="wss://api.cortex.cerebrium.ai/v4/p-d8ebeab9/rio/ws"></Stream>
+  </Content>
+  <Pause length="40"/>
+</Response>
