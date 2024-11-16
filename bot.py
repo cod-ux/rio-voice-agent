@@ -25,7 +25,7 @@ import toml
 logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
-secrets = toml.load(os.path.join(os.path.dirname(__file__), "..", "secrets.toml"))
+secrets = toml.load(os.path.join(os.path.dirname(__file__), "secrets.toml"))
 
 twilio = Client(secrets["TWILIO_SID"], secrets["TWILIO_KEY"])
 
@@ -86,10 +86,12 @@ async def main(websocket_client, stream_sid):
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         # Kick off conversation
-        messages = {
-            "role": "system",
-            "content": "Please introduce yourself to the user. You're name is Rio.",
-        }
+        messages = [
+            {
+                "role": "system",
+                "content": "Please introduce yourself to the user. You're name is Rio.",
+            }
+        ]
         await task.queue_frames([LLMMessagesFrame(messages)])
 
     @transport.event_handler("on_client_disconnected")

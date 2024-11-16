@@ -1,9 +1,11 @@
 import json
 import os, sys
 
-from fastapi import FastAPI, WebSocket, Request
+from fastapi import FastAPI, WebSocket, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import HTMLResponse
+
+from twilio.twiml.voice_response import VoiceResponse
 
 from bot import main
 
@@ -19,19 +21,12 @@ app.add_middleware(
 )
 
 
-@app.post("/")
-async def start_call(request: Request):
-    try:
-        body = await request.body()
-        print(f"Request body: {body}")
-        file_path = os.path.join(os.path.dirname(__file__), "templates/streams.xml")
-        return HTMLResponse(
-            content=open(file_path).read(),  # Can try absolute path
-            media_type="application/xml",
-        )
-    except Exception as e:
-        print(f"Error parsing request: {e}")
-        return HTMLResponse(content=f"Internal Server Error: {e}", status_code=500)
+@app.post("/twilio-webhook")
+def twilio_webhook():
+    print("Post TwiML...")
+    return HTMLResponse(
+        content=open("templates/streams.xml").read(), media_type="application/xml"
+    )
 
 
 @app.websocket("/ws")
