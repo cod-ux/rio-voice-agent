@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="wss://4d62-5-148-66-108.ngrok-free.app/ws"></Stream>
+    <Stream url="wss://63e9-2a06-5904-260d-8d00-c987-eaaf-67a9-a2be.ngrok-free.app/ws"></Stream>
   </Connect>
   <Pause length="40"/>
 </Response>
