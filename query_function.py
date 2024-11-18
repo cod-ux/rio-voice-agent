@@ -95,33 +95,35 @@ def query_tool(query):
 
         tool_results = query_db(SQL_Query=code, connection=conn)
 
-        return json.dumps({"result": tool_results, "sql-query": code})
+        return json.dumps({"result": str(tool_results), "sql-query": code})
 
     else:
         return {"error": "connection failed"}
 
 
-def agent(user_prompt):
+def run_agent():
+    with open(os.path.join(BASE_DIR, "templates", "agent_prompt.md")) as file:
+        agent_prompt = file.read()
+
     messages = [
         {
             "role": "system",
-            "content": "You are a helpful chatbot that can answer natural language questions by querying a database",
+            "content": agent_prompt.format(table_name="sales_revenue", user_query=""),
         },
-        {"role": "user", "content": user_prompt},
     ]
 
     tools = [
         {
             "type": "function",
             "function": {
-                "name": "Query database",
-                "description": "Takes a user request as input and query's the database to return relevant information to answer the user question",
+                "name": "query_tool",
+                "description": "Query a database for finding specific information about the user's company products or financial metrics",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "A segment of the user's question that specifies the information to be retrieved from the database.",
+                            "description": "The user question to find answer to",
                         }
                     },
                     "required": ["query"],
@@ -130,18 +132,73 @@ def agent(user_prompt):
         }
     ]
 
-    response = client.chat.completions.create(
-        stream=True, messages=messages, model="llama-3.2-90b-text-preview"
-    )
+    while True:
+        user_query = input("\n> ")
+        messages.append(
+            {
+                "role": "user",
+                "content": agent_prompt.format(
+                    table_name="sales_revenue", user_query=user_query
+                ),
+            }
+        )
 
-    for chunk in response:
-        print(chunk.choices[0].delta.content or "", end="")
+        response = client.chat.completions.create(
+            stream=True,
+            messages=messages,
+            model="llama-3.2-90b-text-preview",
+            tools=tools,
+            tool_choice="auto",
+        )
+
+        chunked = ""
+        tool_calls = []
+        for chunk in response:
+            print(chunk.choices[0].delta.content or "", end="")
+            if chunk.choices[0].delta.content:
+                chunked += chunk.choices[0].delta.content
+            if chunk.choices[0].delta.tool_calls:
+                tool_calls += chunk.choices[0].delta.tool_calls
+
+        print("Tools info: ", tools)
+        messages.append({"role": "assistant", "content": chunked})
+
+        # messages.append(response_msg)
+        if tool_calls:
+            available_tools = {"query_tool": query_tool}
+
+            for call in tool_calls:
+                function_name = call.function.name
+                funtion_to_call = available_tools[function_name]
+                function_args = json.loads(call.function.arguments)
+
+                function_response = funtion_to_call(function_args.get("query"))
+
+                messages.append(
+                    {
+                        "role": "tool",
+                        "name": function_name,
+                        "content": function_response,
+                        "tool_call_id": call.id,
+                    }
+                )
+
+            followUp_response = client.chat.completions
+
+            response = client.chat.completions.create(
+                stream=True,
+                messages=messages,
+                model="llama-3.2-90b-text-preview",
+            )
+
+            chunked_again = ""
+            for chunk in response:
+                print(chunk.choices[0].delta.content or "", end="")
+                if chunk.choices[0].delta.content:
+                    chunked += chunk.choices[0].delta.content
+
+            messages.append({"role": "assistant", "content": chunked_again})
 
 
-# Tool creation
-
-
-# Run
-
-tool_results = query_tool(query="What is this about?")
-print(tool_results)
+# Run agent
+# run_agent()

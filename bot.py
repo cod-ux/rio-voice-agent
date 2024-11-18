@@ -1,5 +1,6 @@
 import os
 import sys
+import toml
 
 from loguru import logger
 from pipecat.frames.frames import LLMMessagesFrame, EndFrame
@@ -20,17 +21,20 @@ from pipecat.transports.network.fastapi_websocket import (
 from pipecat.serializers.twilio import TwilioFrameSerializer
 from pipecat.services.cartesia import CartesiaTTSService
 
-import toml
+from openai.types.chat import ChatCompletionToolParam
+from query_function import query_tool
 
 logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
 secrets = toml.load(os.path.join(os.path.dirname(__file__), "secrets.toml"))
+BASE_DIR = BASE_DIR = os.path.dirname(__file__)
 
 twilio = Client(secrets["TWILIO_SID"], secrets["TWILIO_KEY"])
 
 
 async def main(websocket_client, stream_sid):
+    print("Running bot...")
     transport = FastAPIWebsocketTransport(
         websocket=websocket_client,
         params=FastAPIWebsocketParams(
@@ -56,16 +60,39 @@ async def main(websocket_client, stream_sid):
         voice_id="95856005-0332-41b0-935f-352e296aa0df",  # Classy British Man
     )
 
+    tools = [
+        ChatCompletionToolParam(
+            type="function",
+            function={
+                "name": "query_tool",
+                "description": "Query a database for finding specific information about the user's company products or financial metrics",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The user question to find answer to",
+                        }
+                    },
+                    "required": ["query"],
+                },
+            },
+        )
+    ]
+
+    with open(os.path.join(BASE_DIR, "templates", "voice_prompt.md")) as f:
+        voice_prompt = f.read()
+
     messages = [
         {
             "role": "system",
-            "content": "You are a helpful LLM in an audio call. Your goal is to demonstrate your capabilities in a succinct way. Your output will be converted to audio so don't include special characters in your answers. Respond to what the user said in a creative and helpful way.",
+            "content": voice_prompt.format(table_name="sales_revenue", user_query=""),
         }
     ]
 
     print("Loaded components...", flush=True)
 
-    context = OpenAILLMContext(messages=messages)
+    context = OpenAILLMContext(messages=messages, tools=tools)
     context_aggregator = llm.create_context_aggregator(context)
 
     # Create Pipeline
@@ -81,7 +108,12 @@ async def main(websocket_client, stream_sid):
         ]
     )
 
-    task = PipelineTask(pipeline, params=PipelineParams(allow_interruptions=True))
+    task = PipelineTask(
+        pipeline,
+        params=PipelineParams(
+            allow_interruptions=True, enable_usage_metrics=True, enable_metrics=True
+        ),
+    )
 
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
