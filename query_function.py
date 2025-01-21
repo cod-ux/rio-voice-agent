@@ -12,7 +12,7 @@ client = OpenAI(
 )
 
 
-# Get Connection to neon postgres
+# Get Connection
 def get_connection():
     try:
         conn = psycopg2.connect(
